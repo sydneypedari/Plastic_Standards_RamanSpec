@@ -1,0 +1,103 @@
+# Plastic_Standards_RamanSpec
+
+# load packages
+library(tidyverse)
+library(readxl)
+library(data.table)
+library(plotly)
+library(stringi)
+library(htmlwidgets)
+options(scipen=999) #remove scientific notation so numbers are easier to read
+
+# 1. Load the data and organize it as needed
+Plastic_data <- read_excel("2024-09-19_Raman_PlasticAndBFRStandards.xlsx", sheet = "Plastic_standards")
+Plastic_data_no_negatives <- Plastic_data %>%
+                             mutate(Intensity = if_else(Intensity < 0, 0, Intensity))
+
+# 2. Use a mutate command from the tidyverse suite to create a new variable that leverages a case_when argument to add labels for different Raman shifts.
+tolerance = 2
+Plastic_data_peaks_assigned <- Plastic_data_no_negatives %>%
+                               group_by(Type) %>%
+                               mutate(Band_assignment = 
+                                      case_when((Intensity >= 50) & between(RamanShift, 395-tolerance, 395+tolerance) ~ "CH2 wagging",
+                                                (Intensity >= 50) & between(RamanShift, 621-tolerance,  621+tolerance) ~ "Ring in-of-plane bending", 
+                                                (Intensity >= 50) & between(RamanShift, 636-tolerance, 636+tolerance) ~  "Ring deformation",
+                                                (Intensity >= 50) & between(RamanShift, 705-tolerance, 705+tolerance) ~  "CH ring out-of-plane bending",
+                                                (Intensity >= 50) & between(RamanShift, 734-tolerance, 734+tolerance) ~  "C-ring stretching",
+                                                (Intensity >= 50) & between(RamanShift, 795-tolerance, 795+tolerance) ~  "C-H out-of-plane bending", 
+                                                (Intensity >= 50) & between(RamanShift, 829-tolerance, 829+tolerance) ~  "ring stretching",
+                                                (Intensity >= 50) & between(RamanShift, 854-tolerance, 854+tolerance) ~  "CCC  in-of-plane bending",
+                                                (Intensity >= 50) & between(RamanShift, 888-tolerance, 888+tolerance) ~  "O-(C=O)-O stretching",
+                                                (Intensity >= 50) & between(RamanShift, 919-tolerance, 919+tolerance) ~  "C-CH3 strecthing and CH3 rocking",
+                                                (Intensity >= 50) & between(RamanShift, 1001-tolerance, 1001+tolerance) ~  "Benzene ring breathing mode",  
+                                                (Intensity >= 50) & between(RamanShift, 1031-tolerance, 1031+tolerance) ~  "C-H in-of-plane bending of benzene",  
+                                                (Intensity >= 50) & between(RamanShift, 1063-1, 1063+1) ~  "C-H in-of-plane bending of benzene",  
+                                                (Intensity >= 20) & between(RamanShift, 1150-tolerance, 1150+tolerance) ~  "CH2 twisting",  
+                                                (Intensity >= 50) & between(RamanShift, 1120-tolerance, 1120+tolerance) ~  "Ring mode",
+                                                (Intensity >= 100) & between(RamanShift, 1289-tolerance, 1289+tolerance) ~  "C=O symmetric stretching",
+                                                (Intensity >= 100) & between(RamanShift, 1235-tolerance, 1235+tolerance) ~  "C-O-C antisymmetric stretching and CO deformation", 
+                                                (Intensity >= 100) & between(RamanShift, 1330-tolerance, 1330+tolerance) ~  "CH2 twisting",
+                                                (Intensity >= 100) & between(RamanShift, 1358-tolerance, 1358+tolerance) ~  "CH3 in-of-plane bending",
+                                                (Intensity >= 100) & between(RamanShift, 1450-tolerance, 1450+tolerance) ~  "CH2 scissoring",
+                                                (Intensity >= 100) & between(RamanShift, 1583-tolerance, 1583+tolerance) ~  "C=C symmetric stretching",
+                                                (Intensity >= 50) & between(RamanShift, 1602-tolerance, 1602+tolerance) ~  "Ring-skeletal stretch",
+                                                (Intensity >= 50) & between(RamanShift, 1614-tolerance, 1614+tolerance) ~  "C-O-C antisymmetric stretching",
+                                                (Intensity >= 50) & between(RamanShift, 1726-tolerance, 1726+tolerance) ~  "C(O)-O and C=O bond",
+                                                (Intensity >= 50) & between(RamanShift, 1128-1, 1128+1) ~ "C-C stretching",
+                                                (Intensity >= 20)  & (Intensity >= 30)& between(RamanShift, 1294-0.1, 1294+0.5) ~ "CH2 twisting",
+                                                (Intensity >= 50) & between(RamanShift, 1440-1, 1440+1) ~ "CH2 bending",
+                                                (Intensity >= 10) &  between(RamanShift, 2239-4, 2239+4) ~  "C≡N vibrational")) %>%
+                               group_by(Type, Band_assignment) %>%
+                               filter(Intensity == max(Intensity)) #filter the intensity to the max value for each plastic type and band assignment
+
+# 3. Join the dedicated dataframe containing the short list of band shifts and corresponding raman shifts to your original data frame by the Ramanshift variable.
+Plastic_data_joined <- left_join(Plastic_data_no_negatives, Plastic_data_peaks_assigned, by = c("Type", "RamanShift")) %>%
+                       select(-(Intensity.y)) %>%
+                       rename(Intensity = Intensity.x)
+
+# 4. general aesthetic theme for scatterplots
+theme<- theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), 
+        panel.background = element_blank(), axis.line = element_line(colour = "black"),
+        axis.text.x = element_text(color = "grey20", size = 16, angle = 0, hjust = 0.5, vjust = 0, face = "plain"),
+        axis.text.y = element_text(color = "grey20", size = 16, angle = 0, hjust = 0.5, vjust = 0, face = "plain"),  
+        axis.title.x = element_text(color = "grey20", size = 18, angle = 0, hjust = 0.5, vjust = -1, face = "plain"),
+        axis.title.y = element_text(color = "grey20", size = 18, angle = 90, face = "plain"),
+        strip.text.x = element_text(size = 20, colour = "grey20"),
+        strip.text.y = element_text(size = 20, colour = "grey20"),
+        plot.title = element_text(size = 18, face = "bold", hjust = 0.5, vjust = 1),
+        legend.title=element_text(size=18), 
+        legend.text=element_text(size=18),
+        legend.position = "bottom",
+        panel.border = element_rect(colour = "black", fill=NA, size=1))
+
+# 5. ggplot code 
+grid_plastics<- ggplot(data=Plastic_data_no_negatives, aes(x=RamanShift, y=Intensity, group=Type, colour=Type)) %>%
+                        + geom_line() %>%
+                        + labs (title= "Raman Spectra for E-waste Standard Plastics", x="Raman Shift (cm^-1)", y="Intensity (counts)") %>%
+                        + facet_grid(rows=vars(Type))%>%
+                        + theme %>%
+                        + scale_x_continuous(limits=c(300,2500)) %>%
+                        + scale_y_continuous(limits=c(0,1050)) %>%
+                        + geom_text(data=Plastic_data_peaks_assigned, aes(label=sprintf("%.0f",RamanShift)), vjust=-0.80, size=2.5, nudge_y = 0)
+
+ggsave(grid_plastics, filename= "plastics1.tiff", device="tiff", height=10, width=9, units="in")
+
+# 6. interactive graph
+grid_plastics <- ggplot(data = Plastic_data_no_negatives, aes(x = RamanShift, y = Intensity, group = Type, colour = Type)) +
+                        geom_line() +
+                        labs(title = "Raman Spectra for E-waste Standard Plastics", 
+                             x = "Raman Shift (cm^-1)", 
+                             y = "Intensity (counts)") +
+                        facet_grid(rows = vars(Type)) +
+                        theme_minimal() +
+                        scale_x_continuous(limits = c(300, 2500)) +
+                        scale_y_continuous(limits = c(0, 1050)) +
+                        geom_text(data = Plastic_data_peaks_assigned, 
+                                  aes(label = sprintf("%.0f", RamanShift), 
+                                      text = Band_assignment),  # Set the tooltip text here
+                                  vjust = -0.80, size = 2.5, nudge_y = 0)
+
+
+Standard_plastic_interactive<-ggplotly(grid_plastics, tooltip = c("text", "Band_assignment"))
+
+htmlwidgets::saveWidget(Standard_plastic_interactive, "plastics_plot.html", selfcontained = TRUE)
